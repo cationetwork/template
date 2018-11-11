@@ -1,0 +1,99 @@
+#!/bin/sh
+
+# -----------------------------------------------------------------
+# CatIO Network tinc-up hook script
+#
+# Description: This script was called when tinc started
+#
+# Authers:
+#     Grover Chou <groverchout@gmail.com>
+#     Myer921 <tianiwap@gmail.com>
+# -----------------------------------------------------------------
+
+VERSION=3.1.0
+
+# --- Settings ----------------------------------------------------
+
+address_v4=
+address_v6=
+gateway_v4=
+gateway_v6=
+route_tables=
+set_default_gateway_v6=false
+set_route_tables_gateway_v4=false
+set_route_tables_gateway_v6=false
+
+# --- Initialize --------------------------------------------------
+
+set -o errexit
+export PATH=/sbin:/usr/sbin:/bin:/usr/bin:/usr/local/bin
+
+# --- Process -----------------------------------------------------
+
+echo CatIO Network tinc-up script version $VERSION
+
+# Interface
+
+if [ -n $address_v4 ]; then
+    echo Adding interface IPv4 address
+    ip -4 address add $address_v4 dev $INTERFACE
+fi
+
+if [ -n $address_v6 ]; then
+    echo Adding interface IPv6 address
+    ip -6 address add $address_v6 dev $INTERFACE
+fi
+
+ip link set $INTERFACE up
+
+# Gateway
+
+if [ -n $address_v6 ] && [ $set_default_gateway_v6 = true ]; then
+    echo Setting host IPv6 default route
+    
+    if [ -n $gateway_v6 ]; then
+        while [ -n "$(ip -6 route | awk '/default/ { print $3 }')" ]; do
+            ip -6 route del default
+        done
+
+        ip -6 route add default dev $INTERFACE via $gateway_v6
+    else
+        echo Failed, variable gateway_v6 not set
+    fi
+fi
+
+if [ -n $address_v4 ] && [ $set_route_tables_gateway_v4 = true ]; then
+    echo Setting route tables IPv4 default route
+    
+    if [ -n $gateway_v4 ] && [ -n $route_tables ]; then
+        for i in $route_tables; do
+            ip -4 route add default dev $INTERFACE via $gateway_v4 table $i
+        done
+    else
+        echo Failed, variable gateway_v4 or route_tables not set
+    fi
+fi
+
+if [ -n $address_v6 ] && [ $set_route_tables_gateway_v6 = true ]; then
+    echo Setting route tables IPv6 default route
+    
+    if [ -n $gateway_v6 ] && [ -n $route_tables ]; then
+        for i in $route_tables; do
+            ip -6 route add default dev $INTERFACE via $gateway_v6 table $i
+        done
+    else
+        echo Failed, variable gateway_v6 or route_tables not set
+    fi
+fi
+
+# --- Extra -------------------------------------------------------
+
+# # Set (interface) route for downstream hosts
+#
+# ip -4 route add [prefix] [dev [interface]] [table [table]]
+# ip -6 route add [prefix] [dev [interface]] [table [table]]
+
+# # Set route table for downstream hosts
+#
+# ip -4 rule add from [prefix] table [table]
+# ip -6 rule add from [prefix] table [table]
